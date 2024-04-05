@@ -2,6 +2,7 @@
 """ Console Module """
 import cmd
 import sys
+import os
 from models.base_model import BaseModel
 from models.__init__ import storage
 from models.user import User
@@ -10,6 +11,7 @@ from models.state import State
 from models.city import City
 from models.amenity import Amenity
 from models.review import Review
+from models.engine.db_storage import DBStorage
 from datetime import datetime
 
 class HBNBCommand(cmd.Cmd):
@@ -17,7 +19,18 @@ class HBNBCommand(cmd.Cmd):
 
     # determines prompt for interactive/non-interactive modes
     prompt = '(hbnb) ' if sys.__stdin__.isatty() else ''
-
+    storage = None
+    storage_type = None
+    def __init__(self):
+        super().__init__()
+        if os.getenv('HBNB_TYPE_STORAGE') == 'db':
+            self.storage = DBStorage()
+            self.storage.reload()
+            self.storage_type = 'db'  # Set the storage_type attribute if HBNB_TYPE_STORAGE is 'db'
+        else:
+            self.storage = FileStorage()
+            self.storage.reload()
+            self.storage_type = 'file'  # Set the storage_type attribute if HBNB_TYPE_STORAGE is not 'db'
     classes = {
                'BaseModel': BaseModel, 'User': User, 'Place': Place,
                'State': State, 'City': City, 'Amenity': Amenity,
@@ -231,23 +244,27 @@ class HBNBCommand(cmd.Cmd):
         print("Destroys an individual instance of a class")
         print("[Usage]: destroy <className> <objectId>\n")
 
-    def do_all(self, args):
-        """ Shows all objects, or all objects of a class"""
-        print_list = []
+    def do_all(self, arg):
+        """
+        Prints all string representation of all instances based or not on the class name
+        """
+        args = arg.split()
+        if not args:
+            print("** class name missing **")
+            return
 
-        if args:
-            args = args.split(' ')[0]  # remove possible trailing args
-            if args not in HBNBCommand.classes:
-                print("** class doesn't exist **")
-                return
-            for k, v in storage._FileStorage__objects.items():
-                if k.split('.')[0] == args:
-                    print_list.append(str(v))
+        cls_name = args[0]
+        if cls_name not in self.classes:
+            print("** class doesn't exist **")
+            return
+
+        if self.storage_type == 'db':
+            objects = self.storage.all(self.classes[cls_name])
         else:
-            for k, v in storage._FileStorage__objects.items():
-                print_list.append(str(v))
+            objects = self.storage.all(cls_name)
 
-        print(print_list)
+        for obj_id, obj in objects.items():
+            print(obj)
 
     def help_all(self):
         """ Help information for the all command """
